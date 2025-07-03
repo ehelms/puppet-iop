@@ -29,4 +29,29 @@ describe 'basic installation' do
       its(:exit_status) { should eq 0 }
     end
   end
+
+  context 'when registering as a smartproxy' do
+    it_behaves_like 'an idempotent resource' do
+      let(:manifest) do
+        <<-PUPPET
+        include certs
+        include certs::foreman
+        include certs::apache
+
+        class { 'iop::core_gateway':
+          register_as_smartproxy => true,
+        }
+        PUPPET
+      end
+    end
+
+    describe service('iop-core-gateway') do
+      it { is_expected.to be_running }
+      it { is_expected.to be_enabled }
+    end
+
+    describe command('curl http://localhost:24443/') do
+      its(:exit_status) { should eq 0 }
+    end
+  end
 end

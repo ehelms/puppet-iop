@@ -10,10 +10,13 @@
 #
 # $ensure::             Ensure service is present or absent
 #
+# $register_as_smartproxy:: Whether to register as a smart proxy
+#
 class iop::core_gateway (
   Stdlib::Fqdn $foreman_servername = $facts['networking']['fqdn'],
   String[1] $image = 'quay.io/iop/gateway',
   Enum['present', 'absent'] $ensure = 'present',
+  Boolean $register_as_smartproxy = false,
 ) {
   include podman
   require iop::core_network
@@ -26,7 +29,6 @@ class iop::core_gateway (
   $server_key_secret_name = "${service_name}-server-key"
   $server_ca_cert_secret_name = "${service_name}-server-ca-cert"
 
-  # Client certificates for Smart Proxy Relay
   $client_cert_secret_name = "${service_name}-client-cert"
   $client_key_secret_name = "${service_name}-client-key"
   $client_ca_cert_secret_name = "${service_name}-client-ca-cert"
@@ -106,8 +108,25 @@ class iop::core_gateway (
         'Restart' => 'always',
       },
       'Install'   => {
-        'WantedBy' => ['multi-user.target', 'default.target'],
+        'WantedBy' => [
+          'multi-user.target',
+          'default.target',
+        ],
       },
     },
+  }
+
+  if $register_as_smartproxy {
+    include foreman
+
+    foreman_smartproxy { 'iop-gateway':
+      ensure          => present,
+      base_url        => "https://${facts['networking']['fqdn']}",
+      consumer_key    => $foreman::oauth_consumer_key,
+      consumer_secret => $foreman::oauth_consumer_secret,
+      effective_user  => $foreman::oauth_effective_user,
+      ssl_ca          => $certs::foreman_proxy::foreman_ssl_ca_cert,
+      url             => "https://localhost:24443",
+    }
   }
 }
